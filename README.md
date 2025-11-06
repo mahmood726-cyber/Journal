@@ -2,6 +2,34 @@
 
 A comprehensive open access journal management system with PubMed/PMC integration for running a diamond open access journal (no fees for authors or readers).
 
+## 🚀 One-Click Deployment
+
+**Deploy in 5 minutes - 10x easier than OJS!**
+
+```bash
+# SSH into your Ubuntu 22.04 server
+ssh root@your-server-ip
+
+# Run one-click installer
+curl -sSL https://raw.githubusercontent.com/yourrepo/Journal/main/deploy-digitalocean.sh | bash
+```
+
+That's it! The script will:
+- ✅ Install Docker and all dependencies
+- ✅ Generate secure passwords
+- ✅ Configure SSL certificates (if domain provided)
+- ✅ Start all services with health checks
+- ✅ Initialize the database
+
+**See [Deployment Guide](docs/deployment-guide.md) for full instructions.**
+
+**Why this is better than OJS:**
+- One command vs 2-4 hours of manual configuration
+- Automatic SSL vs manual certbot setup
+- Modern React UI vs dated PHP interface
+- Built-in security vs manual hardening
+- Docker-based vs dependency hell
+
 ## Features
 
 ### Core Journal Management
