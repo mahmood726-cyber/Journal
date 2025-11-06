@@ -20,6 +20,9 @@ class UserRole(str, enum.Enum):
     ASSOCIATE_EDITOR = "associate_editor"
     REVIEWER = "reviewer"
     AUTHOR = "author"
+    COPYEDITOR = "copyeditor"
+    LAYOUT_EDITOR = "layout_editor"
+    PROOFREADER = "proofreader"
     READER = "reader"
 
 
@@ -31,6 +34,8 @@ class ManuscriptStatus(str, enum.Enum):
     REVISIONS_REQUIRED = "revisions_required"
     REVISED = "revised"
     ACCEPTED = "accepted"
+    COPYEDITING = "copyediting"
+    IN_PRODUCTION = "in_production"
     REJECTED = "rejected"
     PUBLISHED = "published"
     WITHDRAWN = "withdrawn"
@@ -170,8 +175,7 @@ class Manuscript(Base):
     # Publication
     published_at = Column(DateTime(timezone=True))
     doi = Column(String(255), unique=True, index=True)
-    volume = Column(Integer)
-    issue = Column(Integer)
+    issue_id = Column(Integer, ForeignKey('issues.id'), nullable=True, index=True)
     page_start = Column(Integer)
     page_end = Column(Integer)
 
@@ -202,6 +206,10 @@ class Manuscript(Base):
     decisions = relationship("EditorialDecision", back_populates="manuscript")
     revisions = relationship("Manuscript", backref="original")
     comments = relationship("Comment", back_populates="manuscript")
+    copyediting_assignments = relationship("CopyeditingAssignment", back_populates="manuscript")
+    production_assignments = relationship("ProductionAssignment", back_populates="manuscript")
+    issue = relationship("Issue", back_populates="articles")
+    statistics = relationship("ArticleStatistics", back_populates="manuscript")
 
 
 class Review(Base):
@@ -375,4 +383,142 @@ class ThemeRating(Base):
 
     # Relationships
     theme = relationship("Theme", back_populates="ratings")
+    user = relationship("User")
+
+
+class CopyeditingAssignment(Base):
+    """Copyediting assignments for manuscripts."""
+    __tablename__ = "copyediting_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manuscript_id = Column(Integer, ForeignKey('manuscripts.id'), nullable=False, index=True)
+    copyeditor_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    assigned_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # Files
+    original_file_id = Column(Integer, ForeignKey('manuscript_files.id'))
+    copyedited_file_id = Column(Integer, ForeignKey('manuscript_files.id'))
+
+    # Status
+    status = Column(String(50), default="pending")  # pending, in_progress, completed, author_review
+    due_date = Column(DateTime(timezone=True))
+
+    # Copyeditor notes
+    notes = Column(Text)
+    internal_notes = Column(Text)  # Only visible to editors
+
+    # Author review
+    author_approved = Column(Boolean, default=False)
+    author_notes = Column(Text)
+
+    # Timestamps
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    author_reviewed_at = Column(DateTime(timezone=True))
+
+    # Relationships
+    manuscript = relationship("Manuscript", back_populates="copyediting_assignments")
+    copyeditor = relationship("User", foreign_keys=[copyeditor_id])
+    assigned_by = relationship("User", foreign_keys=[assigned_by_id])
+
+
+class ProductionAssignment(Base):
+    """Production assignments for galley generation and proofreading."""
+    __tablename__ = "production_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manuscript_id = Column(Integer, ForeignKey('manuscripts.id'), nullable=False, index=True)
+    assigned_to_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    assigned_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # Assignment type
+    task_type = Column(String(50), nullable=False)  # layout, proofreading, galley_conversion
+
+    # Files
+    source_file_id = Column(Integer, ForeignKey('manuscript_files.id'))
+    output_file_id = Column(Integer, ForeignKey('manuscript_files.id'))
+
+    # Galley information
+    galley_format = Column(String(20))  # pdf, html, xml, epub
+    galley_label = Column(String(100))  # e.g., "PDF", "Full Text HTML"
+
+    # Status
+    status = Column(String(50), default="pending")  # pending, in_progress, completed
+    due_date = Column(DateTime(timezone=True))
+
+    # Notes
+    notes = Column(Text)
+    internal_notes = Column(Text)
+
+    # Timestamps
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+
+    # Relationships
+    manuscript = relationship("Manuscript", back_populates="production_assignments")
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
+    assigned_by = relationship("User", foreign_keys=[assigned_by_id])
+
+
+class Issue(Base):
+    """Journal issues for organizing published articles."""
+    __tablename__ = "issues"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Issue identification
+    volume = Column(Integer, nullable=False)
+    number = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=False)
+    title = Column(String(500))  # Optional special issue title
+
+    # Description
+    description = Column(Text)
+    cover_image_url = Column(String(500))
+
+    # Publication
+    is_published = Column(Boolean, default=False)
+    published_at = Column(DateTime(timezone=True))
+    scheduled_publication = Column(DateTime(timezone=True))
+
+    # Metadata
+    doi = Column(String(100), unique=True, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    articles = relationship("Manuscript", back_populates="issue")
+
+
+class ArticleStatistics(Base):
+    """Track article views and downloads."""
+    __tablename__ = "article_statistics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manuscript_id = Column(Integer, ForeignKey('manuscripts.id'), nullable=False, index=True)
+
+    # Event type
+    event_type = Column(String(50), nullable=False)  # view, download_pdf, download_xml
+
+    # User information (optional - can be anonymous)
+    user_id = Column(Integer, ForeignKey('users.id'), index=True)
+    ip_address = Column(String(45))
+    user_agent = Column(Text)
+
+    # Geographic data (optional)
+    country = Column(String(2))  # ISO country code
+    city = Column(String(100))
+
+    # Referrer
+    referrer = Column(Text)
+
+    # Timestamp
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    # Relationships
+    manuscript = relationship("Manuscript", back_populates="statistics")
     user = relationship("User")
