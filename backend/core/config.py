@@ -102,6 +102,22 @@ class Settings(BaseSettings):
     AWS_BUCKET_NAME: Optional[str] = None
     AWS_REGION: Optional[str] = "us-east-1"
 
+    # Local LLM (Ollama)
+    OLLAMA_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.1:8b"  # Default model for text generation
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"  # Model for embeddings
+    OLLAMA_TIMEOUT: int = 120  # Request timeout in seconds
+
+    # Vector Database (ChromaDB)
+    CHROMADB_URL: str = "http://localhost:8000"
+    CHROMADB_COLLECTION: str = "manuscripts"
+
+    # AI Features Configuration
+    PLAGIARISM_SIMILARITY_THRESHOLD: float = 0.85  # Similarity threshold for plagiarism detection
+    PLAGIARISM_MIN_MATCH_LENGTH: int = 50  # Minimum match length in words
+    REVIEWER_MATCH_THRESHOLD: float = 0.70  # Minimum similarity for reviewer matching
+    REVIEWER_TOP_K: int = 10  # Number of top reviewers to return
+
     class Config:
         env_file = ".env"
         case_sensitive = True
