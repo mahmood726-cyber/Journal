@@ -216,6 +216,7 @@ class Manuscript(Base):
     files = relationship("ManuscriptFile", back_populates="manuscript")
     discussions = relationship("Discussion", back_populates="manuscript")
     participants = relationship("ManuscriptParticipant", back_populates="manuscript")
+    doi_record = relationship("ManuscriptDOI", back_populates="manuscript", uselist=False)
 
 
 class ManuscriptFile(Base):

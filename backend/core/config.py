@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     DOI_TEST_MODE: bool = True
     DOI_PROVIDER: str = "crossref"  # or datacite
 
+    # Crossref DOI Registration
+    CROSSREF_USERNAME: Optional[str] = None  # Defaults to DOI_USERNAME if not set
+    CROSSREF_PASSWORD: Optional[str] = None  # Defaults to DOI_PASSWORD if not set
+    CROSSREF_DOI_PREFIX: Optional[str] = None  # Defaults to DOI_PREFIX if not set
+    CROSSREF_DEPOSITOR_NAME: str = "Journal Depositor"
+    CROSSREF_DEPOSITOR_EMAIL: Optional[str] = None  # Defaults to JOURNAL_EMAIL if not set
+
     # DataCite (alternative to Crossref)
     DATACITE_REPOSITORY_ID: Optional[str] = None
     DATACITE_PASSWORD: Optional[str] = None
@@ -73,6 +80,7 @@ class Settings(BaseSettings):
     # Journal Metadata
     JOURNAL_TITLE: str
     JOURNAL_SHORT_TITLE: Optional[str] = None
+    JOURNAL_ABBREV: Optional[str] = None  # Abbreviated journal title for citations
     JOURNAL_ISSN: str
     JOURNAL_EISSN: str
     JOURNAL_PUBLISHER: str
