@@ -1,7 +1,7 @@
 """
 Authentication API endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -59,6 +59,49 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_current_user_ws(
+    websocket: WebSocket,
+    token: str = Query(...),
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Get current authenticated user from WebSocket query string token.
+
+    Usage: ws://localhost:8000/api/v1/ws/123?token=eyJ0eXAiOiJKV1QiLCJhbGci...
+    """
+    try:
+        payload = decode_token(token)
+        verify_token_type(payload, "access")
+
+        user_id = payload.get("sub")
+        if user_id is None:
+            await websocket.close(code=1008, reason="Invalid credentials")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials"
+            )
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            await websocket.close(code=1008, reason="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+
+        if not user.is_active:
+            await websocket.close(code=1008, reason="Inactive user")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Inactive user"
+            )
+
+        return user
+    except Exception as e:
+        await websocket.close(code=1008, reason="Authentication failed")
+        raise
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

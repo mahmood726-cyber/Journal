@@ -14,7 +14,7 @@ from core.config import settings
 from api import (
     auth, manuscripts, users, reviews, themes, copyediting,
     production, issues, discussions, export, crossref,
-    ai_features, metrics, datacite
+    ai_features, metrics, datacite, websocket
 )
 
 # Rate limiter
@@ -138,6 +138,11 @@ app.include_router(
     metrics.router,
     prefix=f"{settings.API_V1_PREFIX}/metrics",
     tags=["Metrics"]
+)
+app.include_router(
+    websocket.router,
+    prefix=f"{settings.API_V1_PREFIX}",
+    tags=["WebSocket"]
 )
 
 
