@@ -87,8 +87,12 @@ class Settings(BaseSettings):
     JOURNAL_URL: AnyHttpUrl
     JOURNAL_EMAIL: EmailStr
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Redis (Caching Layer)
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: Optional[str] = None
+    REDIS_URL: str = "redis://localhost:6379/0"  # Kept for backwards compatibility
 
     # ORCID
     ORCID_CLIENT_ID: Optional[str] = None

@@ -21,9 +21,9 @@ passlib[bcrypt]==1.7.4
 fastapi-mail==1.4.1
 aiosmtplib==3.0.1
 
-# Background Tasks
+# Background Tasks & Caching
 celery==5.3.4
-redis==5.0.1
+redis[hiredis]==5.0.1  # With high-performance parser
 
 # Validation
 pydantic==2.5.0
