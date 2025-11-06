@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>🎉 Manuscript Accepted</h2>
+
+<p>Dear {{ author_name }},</p>
+
+<p>Congratulations! We are pleased to inform you that your manuscript has been <strong>accepted for publication</strong> in <strong>{{ journal_name }}</strong>.</p>
+
+<div class="manuscript-id">
+    <strong>Manuscript ID:</strong> {{ manuscript_id }}<br>
+    <strong>Title:</strong> {{ title }}
+</div>
+
+<h3>Editorial Comments</h3>
+<div style="padding: 15px; background: #f9f9f9; border-radius: 5px; margin: 15px 0;">
+    {{ comments }}
+</div>
+
+<h3>Next Steps</h3>
+<ol>
+    <li><strong>Copyediting:</strong> Minor editorial corrections may be applied</li>
+    <li><strong>Proof Review:</strong> You will receive proofs for final approval</li>
+    <li><strong>DOI Assignment:</strong> A unique DOI will be assigned to your article</li>
+    <li><strong>Publication:</strong> Your article will be published online with open access</li>
+    <li><strong>Indexing:</strong> Your article will be submitted to PubMed Central and other indexes</li>
+</ol>
+
+<div class="important">
+    <strong>Publication Model:</strong> Diamond Open Access<br>
+    No article processing charges (APCs) will be applied. Your article will be freely available to readers worldwide under a Creative Commons CC BY 4.0 license.
+</div>
+
+<p>Your article will typically be published within 2-3 weeks of acceptance. You will receive a notification with the final publication link and DOI.</p>
+
+<p>Thank you for choosing {{ journal_name }} for your research. We look forward to publishing your work.</p>
+
+<p>Best regards,<br>
+<strong>{{ journal_name }} Editorial Team</strong></p>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Manuscript Decision</h2>
+
+<p>Dear {{ author_name }},</p>
+
+<p>Thank you for submitting your manuscript to <strong>{{ journal_name }}</strong>. After careful consideration and peer review, we regret to inform you that we are unable to accept your manuscript for publication.</p>
+
+<div class="manuscript-id">
+    <strong>Manuscript ID:</strong> {{ manuscript_id }}<br>
+    <strong>Title:</strong> {{ title }}
+</div>
+
+<h3>Editorial Comments and Reviewer Feedback</h3>
+<div style="padding: 15px; background: #f9f9f9; border-radius: 5px; margin: 15px 0;">
+    {{ comments }}
+</div>
+
+<p>This decision does not necessarily reflect on the quality of your research. Our journal receives many high-quality submissions, and we must make difficult decisions based on scope, novelty, and space limitations.</p>
+
+<h3>We Encourage You To:</h3>
+<ul>
+    <li>Consider the reviewer feedback for improving your manuscript</li>
+    <li>Submit to another journal that may be a better fit</li>
+    <li>Contact us if you have questions about the decision</li>
+</ul>
+
+<p>We appreciate your interest in {{ journal_name }} and wish you success in publishing your research elsewhere.</p>
+
+<p>Best regards,<br>
+<strong>{{ journal_name }} Editorial Team</strong></p>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Invitation to Review</h2>
+
+<p>Dear Dr. {{ reviewer_name }},</p>
+
+<p>We would like to invite you to review a manuscript submitted to <strong>{{ journal_name }}</strong>.</p>
+
+<div class="manuscript-id">
+    <strong>Manuscript ID:</strong> {{ manuscript_id }}<br>
+    <strong>Title:</strong> {{ title }}
+</div>
+
+<h3>Abstract</h3>
+<p style="padding: 15px; background: #f9f9f9; border-radius: 5px;">
+    {{ abstract }}
+</p>
+
+<div class="important">
+    <strong>Review Due Date:</strong> {{ due_date }}<br>
+    We kindly request that you complete your review by this date.
+</div>
+
+<h3>What We Ask</h3>
+<ul>
+    <li>Evaluate the manuscript's originality, methodology, and significance</li>
+    <li>Provide constructive feedback to help improve the work</li>
+    <li>Complete the review within the timeline specified</li>
+    <li>Maintain confidentiality throughout the process</li>
+</ul>
+
+<p>This is a <strong>double-blind review</strong> - author identities will not be disclosed to you.</p>
+
+<p>Please indicate your availability:</p>
+
+<a href="{{ accept_url }}" class="button" style="background: #28a745;">Accept Review</a>
+<a href="{{ decline_url }}" class="button" style="background: #dc3545;">Decline</a>
+
+<p>If you accept, you will gain access to the full manuscript and review form. Your expertise is invaluable to maintaining the quality of {{ journal_name }}.</p>
+
+<p>Thank you for considering this invitation.</p>
+
+<p>Best regards,<br>
+<strong>{{ journal_name }} Editorial Team</strong></p>
+{% endblock %}

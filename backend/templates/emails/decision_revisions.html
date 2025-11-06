@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Revisions Required</h2>
+
+<p>Dear {{ author_name }},</p>
+
+<p>Thank you for your patience during the review process. We have received feedback from our reviewers regarding your manuscript submitted to <strong>{{ journal_name }}</strong>.</p>
+
+<div class="manuscript-id">
+    <strong>Manuscript ID:</strong> {{ manuscript_id }}<br>
+    <strong>Title:</strong> {{ title }}
+</div>
+
+<div class="important">
+    <strong>Decision:</strong> {{ revision_type }}<br>
+    <strong>Revision Due Date:</strong> {{ due_date }}
+</div>
+
+<h3>Editorial Comments and Reviewer Feedback</h3>
+<div style="padding: 15px; background: #f9f9f9; border-radius: 5px; margin: 15px 0;">
+    {{ comments }}
+</div>
+
+<h3>Submitting Your Revised Manuscript</h3>
+<p>To submit your revised manuscript, please:</p>
+<ol>
+    <li>Carefully address all reviewer comments</li>
+    <li>Prepare a detailed response letter explaining how you addressed each point</li>
+    <li>Highlight changes in the manuscript (track changes or color highlighting)</li>
+    <li>Upload the revised manuscript and response letter through your dashboard</li>
+</ol>
+
+<a href="{{ submission_url }}" class="button">Submit Revisions</a>
+
+<h3>What Happens Next?</h3>
+<p>Once you submit your revisions, they will be reviewed by the same reviewers (if possible) or by the editorial team. We aim to provide a decision within 2-3 weeks of receiving your revised manuscript.</p>
+
+<p>If you need an extension on the revision deadline, please contact us as soon as possible.</p>
+
+<p>We look forward to receiving your revised manuscript.</p>
+
+<p>Best regards,<br>
+<strong>{{ journal_name }} Editorial Team</strong></p>
+{% endblock %}
