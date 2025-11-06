@@ -9,7 +9,7 @@ import os
 import shutil
 
 from db.base import get_db
-from db.models import User, Manuscript, ManuscriptStatus, UserRole, manuscript_authors
+from db.models import User, Manuscript, ManuscriptStatus, UserRole, manuscript_authors, ManuscriptParticipant
 from schemas.manuscript import (
     ManuscriptCreate,
     ManuscriptResponse,
@@ -366,3 +366,156 @@ async def publish_manuscript(
         )
 
     return manuscript
+
+
+@router.get("/{manuscript_id}/participants")
+async def get_manuscript_participants(
+    manuscript_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all participants for a manuscript across all stages.
+    Returns a list of participants with their roles, stages, and when they were added.
+    """
+    manuscript = db.query(Manuscript).filter(Manuscript.id == manuscript_id).first()
+
+    if not manuscript:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manuscript not found"
+        )
+
+    # Check access permissions
+    is_editor = current_user.role in [UserRole.EDITOR, UserRole.EDITOR_IN_CHIEF, UserRole.ADMIN]
+    is_author = any(author.id == current_user.id for author in manuscript.authors)
+
+    if not is_editor and not is_author:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view participants"
+        )
+
+    # Get all participants
+    participants = db.query(ManuscriptParticipant).filter(
+        ManuscriptParticipant.manuscript_id == manuscript_id
+    ).all()
+
+    # Build response
+    result = []
+    for participant in participants:
+        user = db.query(User).filter(User.id == participant.user_id).first()
+        if user:
+            result.append({
+                "user_id": user.id,
+                "user_name": user.full_name,
+                "user_email": user.email,
+                "role": participant.role,
+                "stage": participant.stage,
+                "added_at": participant.added_at.isoformat() if participant.added_at else None,
+            })
+
+    return {"participants": result, "total": len(result)}
+
+
+@router.post("/{manuscript_id}/participants", status_code=status.HTTP_201_CREATED)
+async def add_manuscript_participant(
+    manuscript_id: int,
+    user_id: int,
+    role: str,
+    stage: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.EDITOR, UserRole.EDITOR_IN_CHIEF, UserRole.ADMIN]))
+):
+    """
+    Add a participant to a manuscript (editor only).
+    Valid roles: author, editor, reviewer, copyeditor, production_staff
+    """
+    manuscript = db.query(Manuscript).filter(Manuscript.id == manuscript_id).first()
+
+    if not manuscript:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manuscript not found"
+        )
+
+    # Validate user exists
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Check if already exists
+    existing = db.query(ManuscriptParticipant).filter(
+        ManuscriptParticipant.manuscript_id == manuscript_id,
+        ManuscriptParticipant.user_id == user_id,
+        ManuscriptParticipant.role == role
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Participant already exists with this role"
+        )
+
+    # Add participant
+    participant = ManuscriptParticipant(
+        manuscript_id=manuscript_id,
+        user_id=user_id,
+        role=role,
+        stage=stage,
+        added_by_id=current_user.id
+    )
+
+    db.add(participant)
+    db.commit()
+
+    return {
+        "message": "Participant added successfully",
+        "participant": {
+            "user_id": user.id,
+            "user_name": user.full_name,
+            "role": role,
+            "stage": stage
+        }
+    }
+
+
+@router.delete("/{manuscript_id}/participants/{user_id}/{role}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_manuscript_participant(
+    manuscript_id: int,
+    user_id: int,
+    role: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.EDITOR, UserRole.EDITOR_IN_CHIEF, UserRole.ADMIN]))
+):
+    """
+    Remove a participant from a manuscript (editor only).
+    """
+    manuscript = db.query(Manuscript).filter(Manuscript.id == manuscript_id).first()
+
+    if not manuscript:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manuscript not found"
+        )
+
+    # Find and delete participant
+    participant = db.query(ManuscriptParticipant).filter(
+        ManuscriptParticipant.manuscript_id == manuscript_id,
+        ManuscriptParticipant.user_id == user_id,
+        ManuscriptParticipant.role == role
+    ).first()
+
+    if not participant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Participant not found"
+        )
+
+    db.delete(participant)
+    db.commit()
+
+    return None

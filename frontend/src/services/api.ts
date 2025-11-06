@@ -89,6 +89,11 @@ export const apiService = {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
     },
+    getParticipants: (id: number) => api.get(`/manuscripts/${id}/participants`),
+    addParticipant: (id: number, data: { user_id: number; role: string; stage?: string }) =>
+      api.post(`/manuscripts/${id}/participants`, null, { params: data }),
+    removeParticipant: (id: number, userId: number, role: string) =>
+      api.delete(`/manuscripts/${id}/participants/${userId}/${role}`),
   },
 
   // Reviews
@@ -137,6 +142,81 @@ export const apiService = {
   // Journal Stats (public)
   stats: {
     get: () => api.get('/stats'),
+  },
+
+  // Discussions
+  discussions: {
+    list: (params?: any) => api.get('/discussions', { params }),
+    get: (id: number) => api.get(`/discussions/${id}`),
+    create: (data: any) => api.post('/discussions', data),
+    addMessage: (id: number, data: { message: string; file_ids?: number[] }) =>
+      api.post(`/discussions/${id}/messages`, data),
+    addParticipants: (id: number, data: { user_ids: number[] }) =>
+      api.post(`/discussions/${id}/participants`, data),
+    removeParticipant: (id: number, userId: number) =>
+      api.delete(`/discussions/${id}/participants/${userId}`),
+    close: (id: number) => api.post(`/discussions/${id}/close`),
+    reopen: (id: number) => api.post(`/discussions/${id}/reopen`),
+  },
+
+  // Copyediting
+  copyediting: {
+    list: (params?: any) => api.get('/copyediting/assignments', { params }),
+    get: (id: number) => api.get(`/copyediting/assignments/${id}`),
+    create: (data: any) => api.post('/copyediting/assignments', data),
+    update: (id: number, data: any) => api.patch(`/copyediting/assignments/${id}`, data),
+    complete: (id: number, data: any) => api.post(`/copyediting/assignments/${id}/complete`, data),
+    uploadFile: (id: number, file: File, version: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('version', version);
+      return api.post(`/copyediting/assignments/${id}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    },
+  },
+
+  // Production
+  production: {
+    list: (params?: any) => api.get('/production/assignments', { params }),
+    get: (id: number) => api.get(`/production/assignments/${id}`),
+    create: (data: any) => api.post('/production/assignments', data),
+    update: (id: number, data: any) => api.patch(`/production/assignments/${id}`, data),
+    complete: (id: number, data: any) => api.post(`/production/assignments/${id}/complete`, data),
+    generateGalley: (manuscriptId: number, data: any) =>
+      api.post(`/production/manuscripts/${manuscriptId}/generate-galley`, data),
+    uploadGalley: (manuscriptId: number, file: File, format: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('format', format);
+      return api.post(`/production/manuscripts/${manuscriptId}/galleys`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    },
+  },
+
+  // Issues
+  issues: {
+    list: (params?: any) => api.get('/issues', { params }),
+    get: (id: number) => api.get(`/issues/${id}`),
+    create: (data: any) => api.post('/issues', data),
+    update: (id: number, data: any) => api.patch(`/issues/${id}`, data),
+    delete: (id: number) => api.delete(`/issues/${id}`),
+    publish: (id: number, data?: any) => api.post(`/issues/${id}/publish`, data),
+    getTableOfContents: (id: number) => api.get(`/issues/${id}/toc`),
+    addArticle: (id: number, data: { manuscript_id: number; section?: string }) =>
+      api.post(`/issues/${id}/articles`, data),
+    removeArticle: (id: number, manuscriptId: number) =>
+      api.delete(`/issues/${id}/articles/${manuscriptId}`),
+    reorderArticles: (id: number, data: { article_orders: any[] }) =>
+      api.post(`/issues/${id}/reorder`, data),
+    uploadCover: (id: number, file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return api.post(`/issues/${id}/cover`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    },
   },
 };
 
