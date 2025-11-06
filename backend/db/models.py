@@ -315,3 +315,64 @@ class AuditLog(Base):
     ip_address = Column(String(45))
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Theme(Base):
+    """Theme for marketplace - custom journal themes."""
+    __tablename__ = "themes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    theme_id = Column(String(100), unique=True, index=True, nullable=False)  # Slug-like ID
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=False)
+    category = Column(String(50), nullable=False, index=True)
+
+    # Theme configuration (stored as JSON)
+    colors_json = Column(Text, nullable=False)  # JSON string of color palette
+    typography_json = Column(Text, nullable=False)  # JSON string of typography
+    border_radius = Column(String(20), default="0.5rem")
+
+    # Metadata
+    author = Column(String(255), nullable=False)
+    author_email = Column(String(255))
+    version = Column(String(20), default="1.0.0")
+    preview_image_url = Column(String(500))
+
+    # Statistics
+    download_count = Column(Integer, default=0)
+    average_rating = Column(Float, default=0.0)
+    rating_count = Column(Integer, default=0)
+
+    # Approval workflow
+    is_approved = Column(Boolean, default=False)
+    approved_at = Column(DateTime(timezone=True))
+    approved_by_id = Column(Integer, ForeignKey('users.id'))
+
+    # Audit
+    created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    approved_by = relationship("User", foreign_keys=[approved_by_id])
+    ratings = relationship("ThemeRating", back_populates="theme", cascade="all, delete-orphan")
+
+
+class ThemeRating(Base):
+    """User ratings and reviews for themes."""
+    __tablename__ = "theme_ratings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    theme_id = Column(Integer, ForeignKey('themes.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+
+    rating = Column(Integer, nullable=False)  # 1-5 stars
+    review = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    theme = relationship("Theme", back_populates="ratings")
+    user = relationship("User")
