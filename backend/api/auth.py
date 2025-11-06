@@ -1,13 +1,17 @@
 """
 Authentication API endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime
+import httpx
+from typing import Optional
+import secrets
 
 from db.base import get_db
-from db.models import User
+from db.models import User, UserRole
 from schemas.user import UserCreate, UserResponse, Token, UserLogin
 from core.security import (
     verify_password,
@@ -195,3 +199,317 @@ async def logout(current_user: User = Depends(get_current_user)):
     Logout user (client should delete tokens).
     """
     return {"message": "Successfully logged out"}
+
+
+# ============================================================================
+# ORCID OAuth Integration
+# ============================================================================
+
+# In-memory state storage (in production, use Redis)
+oauth_states = {}
+
+
+@router.get("/orcid/login")
+async def orcid_login(redirect_uri: Optional[str] = None):
+    """
+    Initiate ORCID OAuth login flow.
+
+    Returns authorization URL to redirect user to ORCID.
+
+    Configuration required in settings:
+    - ORCID_CLIENT_ID
+    - ORCID_CLIENT_SECRET
+    - ORCID_REDIRECT_URI (or use redirect_uri parameter)
+    - ORCID_API_BASE (production or sandbox)
+    """
+    if not hasattr(settings, 'ORCID_CLIENT_ID') or not settings.ORCID_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="ORCID OAuth is not configured. Please set ORCID_CLIENT_ID in settings."
+        )
+
+    # Generate state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    oauth_states[state] = {
+        'created_at': datetime.now(),
+        'redirect_uri': redirect_uri or settings.FRONTEND_URL
+    }
+
+    # Build ORCID authorization URL
+    orcid_base = getattr(settings, 'ORCID_API_BASE', 'https://orcid.org')
+    redirect_uri_param = getattr(settings, 'ORCID_REDIRECT_URI', f"{settings.API_URL}/api/v1/auth/orcid/callback")
+
+    auth_url = (
+        f"{orcid_base}/oauth/authorize"
+        f"?client_id={settings.ORCID_CLIENT_ID}"
+        f"&response_type=code"
+        f"&scope=/authenticate"
+        f"&redirect_uri={redirect_uri_param}"
+        f"&state={state}"
+    )
+
+    return {
+        "authorization_url": auth_url,
+        "state": state
+    }
+
+
+@router.get("/orcid/callback")
+async def orcid_callback(
+    code: str,
+    state: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Handle ORCID OAuth callback.
+
+    - Validates state
+    - Exchanges code for access token
+    - Fetches ORCID profile
+    - Creates new user or links to existing account
+    - Returns JWT tokens
+    """
+    if not hasattr(settings, 'ORCID_CLIENT_ID') or not settings.ORCID_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="ORCID OAuth is not configured"
+        )
+
+    # Verify state (CSRF protection)
+    if state not in oauth_states:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth state"
+        )
+
+    state_data = oauth_states.pop(state)
+
+    # Check state age (expire after 10 minutes)
+    if (datetime.now() - state_data['created_at']).seconds > 600:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OAuth state expired"
+        )
+
+    # Exchange authorization code for access token
+    orcid_base = getattr(settings, 'ORCID_API_BASE', 'https://orcid.org')
+    redirect_uri = getattr(settings, 'ORCID_REDIRECT_URI', f"{settings.API_URL}/api/v1/auth/orcid/callback")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            token_response = await client.post(
+                f"{orcid_base}/oauth/token",
+                headers={
+                    "Accept": "application/json",
+                },
+                data={
+                    "client_id": settings.ORCID_CLIENT_ID,
+                    "client_secret": settings.ORCID_CLIENT_SECRET,
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri
+                }
+            )
+
+            if token_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to exchange ORCID code: {token_response.text}"
+                )
+
+            token_data = token_response.json()
+            orcid_id = token_data.get('orcid')
+            orcid_access_token = token_data.get('access_token')
+            name = token_data.get('name')
+
+            if not orcid_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to get ORCID iD from response"
+                )
+
+            # Fetch full ORCID profile (optional, for more details)
+            # This requires /read-limited scope
+            # For now, we'll use the basic info from token response
+
+        except httpx.HTTPError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error communicating with ORCID: {str(e)}"
+            )
+
+    # Check if user exists with this ORCID
+    user = db.query(User).filter(User.orcid == orcid_id).first()
+
+    if user:
+        # Existing user - log them in
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is inactive"
+            )
+
+        # Update last login
+        user.last_login = datetime.now()
+        db.commit()
+
+    else:
+        # New user - create account
+        # Generate unique email placeholder (user can update later)
+        temp_email = f"{orcid_id.replace('-', '')}@orcid.placeholder"
+
+        # Check if placeholder email exists (shouldn't happen, but be safe)
+        existing_temp = db.query(User).filter(User.email == temp_email).first()
+        if existing_temp:
+            temp_email = f"{orcid_id.replace('-', '')}.{secrets.token_hex(4)}@orcid.placeholder"
+
+        # Parse name
+        if name:
+            parts = name.split()
+            first_name = parts[0] if parts else ""
+            last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
+        else:
+            first_name = "ORCID"
+            last_name = "User"
+
+        # Create new user
+        user = User(
+            email=temp_email,
+            first_name=first_name,
+            last_name=last_name,
+            orcid=orcid_id,
+            role=UserRole.AUTHOR,  # Default role
+            is_active=True,
+            is_verified=True,  # ORCID-authenticated users are verified
+            hashed_password=get_password_hash(secrets.token_urlsafe(32))  # Random password (won't be used)
+        )
+
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        # Send welcome email (if they have a real email)
+        if not user.email.endswith('@orcid.placeholder'):
+            try:
+                await email_service.send_email(
+                    recipients=[user.email],
+                    subject="Welcome to the Journal",
+                    template_name="welcome",
+                    context={
+                        'user_name': f"{user.first_name} {user.last_name}",
+                        'role': user.role.value
+                    }
+                )
+            except Exception as e:
+                print(f"Failed to send welcome email: {e}")
+
+    # Create JWT tokens
+    access_token = create_access_token(data={"sub": user.id})
+    refresh_token = create_refresh_token(data={"sub": user.id})
+
+    # Redirect to frontend with tokens
+    frontend_redirect = state_data.get('redirect_uri', settings.FRONTEND_URL)
+    redirect_url = f"{frontend_redirect}/auth/orcid-callback?access_token={access_token}&refresh_token={refresh_token}"
+
+    return RedirectResponse(url=redirect_url)
+
+
+@router.post("/orcid/link")
+async def link_orcid(
+    orcid_code: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Link ORCID to existing account.
+
+    User must be logged in. Exchanges ORCID code for ORCID iD and links to account.
+    """
+    if not hasattr(settings, 'ORCID_CLIENT_ID') or not settings.ORCID_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="ORCID OAuth is not configured"
+        )
+
+    if current_user.orcid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Account already linked to ORCID: {current_user.orcid}"
+        )
+
+    # Exchange code for ORCID iD (same process as callback)
+    orcid_base = getattr(settings, 'ORCID_API_BASE', 'https://orcid.org')
+    redirect_uri = getattr(settings, 'ORCID_REDIRECT_URI', f"{settings.API_URL}/api/v1/auth/orcid/callback")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            token_response = await client.post(
+                f"{orcid_base}/oauth/token",
+                headers={"Accept": "application/json"},
+                data={
+                    "client_id": settings.ORCID_CLIENT_ID,
+                    "client_secret": settings.ORCID_CLIENT_SECRET,
+                    "grant_type": "authorization_code",
+                    "code": orcid_code,
+                    "redirect_uri": redirect_uri
+                }
+            )
+
+            if token_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to verify ORCID code"
+                )
+
+            token_data = token_response.json()
+            orcid_id = token_data.get('orcid')
+
+            if not orcid_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to get ORCID iD"
+                )
+
+        except httpx.HTTPError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error communicating with ORCID: {str(e)}"
+            )
+
+    # Check if ORCID already linked to another account
+    existing_user = db.query(User).filter(User.orcid == orcid_id).first()
+    if existing_user and existing_user.id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This ORCID is already linked to another account"
+        )
+
+    # Link ORCID to current user
+    current_user.orcid = orcid_id
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "message": "ORCID successfully linked",
+        "orcid": orcid_id
+    }
+
+
+@router.post("/orcid/unlink")
+async def unlink_orcid(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Unlink ORCID from current account.
+    """
+    if not current_user.orcid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No ORCID linked to this account"
+        )
+
+    current_user.orcid = None
+    db.commit()
+
+    return {"message": "ORCID unlinked successfully"}

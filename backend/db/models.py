@@ -176,6 +176,9 @@ class Manuscript(Base):
     published_at = Column(DateTime(timezone=True))
     doi = Column(String(255), unique=True, index=True)
     issue_id = Column(Integer, ForeignKey('issues.id'), nullable=True, index=True)
+    volume = Column(Integer, nullable=True, index=True)  # Issue volume
+    issue = Column(Integer, nullable=True, index=True)  # Issue number
+    article_order = Column(Integer, nullable=True)  # Order within issue
     page_start = Column(Integer)
     page_end = Column(Integer)
 
@@ -210,6 +213,38 @@ class Manuscript(Base):
     production_assignments = relationship("ProductionAssignment", back_populates="manuscript")
     issue = relationship("Issue", back_populates="articles")
     statistics = relationship("ArticleStatistics", back_populates="manuscript")
+    files = relationship("ManuscriptFile", back_populates="manuscript")
+
+
+class ManuscriptFile(Base):
+    """File attachments for manuscripts (manuscript, copyedited, galleys, etc.)."""
+    __tablename__ = "manuscript_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manuscript_id = Column(Integer, ForeignKey('manuscripts.id'), nullable=False, index=True)
+
+    # File information
+    file_type = Column(String(50), nullable=False)  # manuscript, supplementary, copyedited, production_*, galley
+    file_name = Column(String(500), nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    file_size = Column(Integer)  # in bytes
+
+    # Version tracking
+    version = Column(Integer, default=1)
+
+    # Galley-specific fields
+    galley_label = Column(String(100))  # "PDF", "HTML", "XML", etc.
+    galley_format = Column(String(20))  # pdf, html, xml, epub
+
+    # Uploader
+    uploaded_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # Timestamps
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    manuscript = relationship("Manuscript", back_populates="files")
+    uploaded_by = relationship("User")
 
 
 class Review(Base):
