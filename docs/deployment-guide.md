@@ -701,6 +701,67 @@ python migrate_ojs_data.py \
 
 ---
 
+## Optional: Add Free AI Features with Ollama
+
+Want intelligent reviewer matching, plagiarism detection, and abstract analysis? Add Ollama for **100% free AI** (no API costs, all data stays on your server).
+
+### Why Add AI?
+
+**AI-Powered Features You Get:**
+- ✅ **Smart Reviewer Matching** - Automatically match manuscripts to reviewers by expertise
+- ✅ **Plagiarism Detection** - Semantic similarity detection catches paraphrasing
+- ✅ **Abstract Analysis** - Check structure, clarity, and completeness
+- ✅ **Manuscript Classification** - Auto-categorize by subject and methodology
+- ✅ **Citation Analysis** - Identify missing key references
+
+**Cost Comparison:**
+- OpenAI API: $50-200/month for 1000 submissions
+- Ollama: **$0/month** (just needs 4-8GB extra RAM)
+
+### Quick Ollama Setup (5 minutes)
+
+**1. Install Ollama:**
+```bash
+curl https://ollama.ai/install.sh | sh
+```
+
+**2. Download AI model:**
+```bash
+# Small & fast (4GB RAM)
+ollama pull llama2:7b
+
+# For semantic matching
+ollama pull mxbai-embed-large
+```
+
+**3. Enable in journal:**
+```bash
+cd /opt/Journal
+nano .env
+
+# Add these lines:
+AI_ENABLED=true
+AI_PROVIDER=ollama
+OLLAMA_API_BASE=http://localhost:11434
+OLLAMA_MODEL=llama2:7b
+OLLAMA_EMBEDDING_MODEL=mxbai-embed-large
+
+# Restart
+docker-compose -f docker-compose.prod.yml restart backend
+```
+
+**Done!** You now have free AI-powered features.
+
+**See full guide:** [docs/ollama-ai-setup.md](ollama-ai-setup.md)
+
+**Server Specs with AI:**
+- Without AI: 4GB RAM ($24/month)
+- With AI: 8GB RAM ($48/month)
+- **Extra cost:** $24/month for unlimited AI vs $50-200/month for APIs
+- **Savings:** $26-176/month ($312-2,112/year!)
+
+---
+
 ## Next Steps
 
 1. ✅ **Deploy your journal** (5-10 minutes)
