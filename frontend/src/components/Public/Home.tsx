@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import {
@@ -30,7 +30,7 @@ interface JournalStats {
   avgReviewTime: number;
 }
 
-const Home: React.FC = () => {
+const Home: React.FC = React.memo(() => {
   const { data: featuredArticles } = useQuery<FeaturedArticle[]>(
     'featured-articles',
     () => api.get('/articles/featured').then((res) => res.data),
@@ -50,7 +50,8 @@ const Home: React.FC = () => {
     }
   );
 
-  const features = [
+  // Memoize static content to prevent re-creation on every render
+  const features = useMemo(() => [
     {
       icon: SparklesIcon,
       title: 'Diamond Open Access',
@@ -83,9 +84,9 @@ const Home: React.FC = () => {
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
-  ];
+  ], []);
 
-  const benefits = [
+  const benefits = useMemo(() => [
     'No Article Processing Charges (APCs)',
     'Fast peer review (average 21 days)',
     'Indexed in major databases',
@@ -94,7 +95,7 @@ const Home: React.FC = () => {
     'ORCID integration',
     'Comprehensive citation metrics',
     'Video abstract support',
-  ];
+  ], []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -402,6 +403,8 @@ const Home: React.FC = () => {
       </footer>
     </div>
   );
-};
+});
+
+Home.displayName = 'Home';
 
 export default Home;

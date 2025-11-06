@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -7,10 +7,11 @@ import {
   PhoneIcon,
 } from '@heroicons/react/24/outline';
 
-const EnhancedFooter: React.FC = () => {
+const EnhancedFooter: React.FC = React.memo(() => {
   const { currentTheme } = useTheme();
 
-  const footerLinks = {
+  // Memoize footer links - they don't change
+  const footerLinks = useMemo(() => ({
     about: [
       { name: 'About Us', href: '/about' },
       { name: 'Editorial Board', href: '/editorial-board' },
@@ -35,13 +36,14 @@ const EnhancedFooter: React.FC = () => {
       { name: 'Cookie Policy', href: '/cookies' },
       { name: 'Accessibility', href: '/accessibility' },
     ],
-  };
+  }), []);
 
-  const socialLinks = [
+  // Memoize social links - they don't change
+  const socialLinks = useMemo(() => [
     { name: 'Twitter', href: '#', icon: '𝕏' },
     { name: 'LinkedIn', href: '#', icon: 'in' },
     { name: 'GitHub', href: '#', icon: '' },
-  ];
+  ], []);
 
   return (
     <footer
@@ -260,6 +262,8 @@ const EnhancedFooter: React.FC = () => {
       </div>
     </footer>
   );
-};
+});
+
+EnhancedFooter.displayName = 'EnhancedFooter';
 
 export default EnhancedFooter;

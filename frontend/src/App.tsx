@@ -1,44 +1,7 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
-
-// Layouts
-import DashboardLayout from './layouts/DashboardLayout';
-import PublicLayout from './layouts/PublicLayout';
-
-// Auth Pages
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-import ForgotPassword from './pages/auth/ForgotPassword';
-
-// Dashboard Pages
-import Dashboard from './pages/dashboard/Dashboard';
-import MyManuscripts from './pages/dashboard/MyManuscripts';
-import SubmitManuscript from './pages/dashboard/SubmitManuscript';
-import MyReviews from './pages/dashboard/MyReviews';
-import ReviewManuscript from './pages/dashboard/ReviewManuscript';
-
-// Editor Pages
-import EditorDashboard from './pages/editor/EditorDashboard';
-import ManuscriptList from './pages/editor/ManuscriptList';
-import ManuscriptDetail from './pages/editor/ManuscriptDetail';
-import ReviewerManagement from './pages/editor/ReviewerManagement';
-import AssignReviewers from './pages/editor/AssignReviewers';
-
-// Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import UserManagement from './pages/admin/UserManagement';
-import JournalSettings from './pages/admin/JournalSettings';
-import Analytics from './pages/admin/Analytics';
-
-// Public Pages
-import Home from './pages/public/Home';
-import ArticleView from './pages/public/ArticleView';
-import IssueView from './pages/public/IssueView';
-import SearchResults from './pages/public/SearchResults';
-import About from './pages/public/About';
-import EditorialBoard from './pages/public/EditorialBoard';
 
 // Context
 import { AuthProvider } from './context/AuthContext';
@@ -47,10 +10,62 @@ import { ThemeProvider } from './context/ThemeContext';
 // Hooks
 import { useAuth } from './hooks/useAuth';
 
+// Loading component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+  </div>
+);
+
+// Lazy-loaded Layouts
+const DashboardLayout = lazy(() => import('./layouts/DashboardLayout'));
+const PublicLayout = lazy(() => import('./layouts/PublicLayout'));
+
+// Lazy-loaded Auth Pages
+const Login = lazy(() => import('./pages/auth/Login'));
+const Register = lazy(() => import('./pages/auth/Register'));
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
+
+// Lazy-loaded Dashboard Pages
+const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'));
+const MyManuscripts = lazy(() => import('./pages/dashboard/MyManuscripts'));
+const SubmitManuscript = lazy(() => import('./pages/dashboard/SubmitManuscript'));
+const MyReviews = lazy(() => import('./pages/dashboard/MyReviews'));
+const ReviewManuscript = lazy(() => import('./pages/dashboard/ReviewManuscript'));
+
+// Lazy-loaded Editor Pages
+const EditorDashboard = lazy(() => import('./pages/editor/EditorDashboard'));
+const ManuscriptList = lazy(() => import('./pages/editor/ManuscriptList'));
+const ManuscriptDetail = lazy(() => import('./pages/editor/ManuscriptDetail'));
+const ReviewerManagement = lazy(() => import('./pages/editor/ReviewerManagement'));
+const AssignReviewers = lazy(() => import('./pages/editor/AssignReviewers'));
+
+// Lazy-loaded Admin Pages
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const JournalSettings = lazy(() => import('./pages/admin/JournalSettings'));
+const Analytics = lazy(() => import('./pages/admin/Analytics'));
+
+// Lazy-loaded Public Pages
+const Home = lazy(() => import('./pages/public/Home'));
+const ArticleView = lazy(() => import('./pages/public/ArticleView'));
+const IssueView = lazy(() => import('./pages/public/IssueView'));
+const SearchResults = lazy(() => import('./pages/public/SearchResults'));
+const About = lazy(() => import('./pages/public/About'));
+const EditorialBoard = lazy(() => import('./pages/public/EditorialBoard'));
+
+// Optimized QueryClient configuration
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000,  // 5 minutes - data stays fresh longer
+      cacheTime: 10 * 60 * 1000,  // 10 minutes - cache persists longer
+      refetchOnMount: false,      // Don't refetch on mount if data is fresh
+      refetchOnReconnect: true,   // Refetch when network reconnects
+    },
+    mutations: {
       retry: 1,
     },
   },
@@ -80,9 +95,10 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <Router>
-            <Routes>
-            {/* Public Routes */}
-            <Route element={<PublicLayout />}>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                {/* Public Routes */}
+                <Route element={<PublicLayout />}>
               <Route path="/" element={<Home />} />
               <Route path="/article/:manuscriptId" element={<ArticleView />} />
               <Route path="/issue/:volume/:issue" element={<IssueView />} />
@@ -146,12 +162,13 @@ function App() {
               <Route path="analytics" element={<Analytics />} />
             </Route>
 
-            {/* 404 */}
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </Router>
-        <Toaster position="top-right" />
-      </AuthProvider>
+                {/* 404 */}
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </Suspense>
+          </Router>
+          <Toaster position="top-right" />
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

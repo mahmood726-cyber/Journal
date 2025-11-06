@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   MagnifyingGlassIcon,
@@ -24,7 +24,7 @@ interface NavItem {
   dropdownItems?: NavDropdownItem[];
 }
 
-const EnhancedNav: React.FC = () => {
+const EnhancedNav: React.FC = React.memo(() => {
   const location = useLocation();
   const { themeId, setTheme, toggleDarkMode, isDarkMode, currentTheme } = useTheme();
   const [isScrolled, setIsScrolled] = useState(false);
@@ -47,7 +47,8 @@ const EnhancedNav: React.FC = () => {
     setActiveDropdown(null);
   }, [location.pathname]);
 
-  const navigation: NavItem[] = [
+  // Memoize navigation array - doesn't change
+  const navigation: NavItem[] = useMemo(() => [
     { name: 'Home', href: '/' },
     {
       name: 'Articles',
@@ -77,11 +78,13 @@ const EnhancedNav: React.FC = () => {
       ],
     },
     { name: 'Contact', href: '/contact' },
-  ];
+  ], []);
 
-  const themeOptions = getThemeOptions();
+  // Memoize theme options - rarely changes
+  const themeOptions = useMemo(() => getThemeOptions(), []);
 
-  const isCurrentPath = (href: string) => location.pathname === href;
+  // Memoize callback functions
+  const isCurrentPath = useCallback((href: string) => location.pathname === href, [location.pathname]);
 
   return (
     <>
@@ -402,6 +405,8 @@ const EnhancedNav: React.FC = () => {
       <div className="h-16" />
     </>
   );
-};
+});
+
+EnhancedNav.displayName = 'EnhancedNav';
 
 export default EnhancedNav;
