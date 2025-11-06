@@ -42,6 +42,7 @@ import EditorialBoard from './pages/public/EditorialBoard';
 
 // Context
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -76,9 +77,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Router>
-          <Routes>
+      <ThemeProvider>
+        <AuthProvider>
+          <Router>
+            <Routes>
             {/* Public Routes */}
             <Route element={<PublicLayout />}>
               <Route path="/" element={<Home />} />
@@ -150,6 +152,7 @@ function App() {
         </Router>
         <Toaster position="top-right" />
       </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
