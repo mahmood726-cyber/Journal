@@ -4,7 +4,7 @@ Main FastAPI application for Diamond OA Journal Management System.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
-from api import auth, manuscripts, users, reviews, themes, copyediting, production, issues
+from api import auth, manuscripts, users, reviews, themes, copyediting, production, issues, discussions
 
 # Create FastAPI app
 app = FastAPI(
@@ -31,6 +31,7 @@ app.include_router(themes.router, prefix=f"{settings.API_V1_PREFIX}/themes", tag
 app.include_router(copyediting.router, prefix=f"{settings.API_V1_PREFIX}/copyediting", tags=["Copyediting"])
 app.include_router(production.router, prefix=f"{settings.API_V1_PREFIX}/production", tags=["Production"])
 app.include_router(issues.router, prefix=f"{settings.API_V1_PREFIX}/issues", tags=["Issues"])
+app.include_router(discussions.router, prefix=f"{settings.API_V1_PREFIX}/discussions", tags=["Discussions"])
 
 
 @app.get("/")

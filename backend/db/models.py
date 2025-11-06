@@ -214,6 +214,8 @@ class Manuscript(Base):
     issue = relationship("Issue", back_populates="articles")
     statistics = relationship("ArticleStatistics", back_populates="manuscript")
     files = relationship("ManuscriptFile", back_populates="manuscript")
+    discussions = relationship("Discussion", back_populates="manuscript")
+    participants = relationship("ManuscriptParticipant", back_populates="manuscript")
 
 
 class ManuscriptFile(Base):
@@ -557,3 +559,96 @@ class ArticleStatistics(Base):
     # Relationships
     manuscript = relationship("Manuscript", back_populates="statistics")
     user = relationship("User")
+
+
+# Many-to-many table for discussion participants
+discussion_participants = Table(
+    'discussion_participants',
+    Base.metadata,
+    Column('discussion_id', Integer, ForeignKey('discussions.id'), primary_key=True),
+    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True)
+)
+
+
+class Discussion(Base):
+    """Discussion threads for manuscript collaboration."""
+    __tablename__ = "discussions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manuscript_id = Column(Integer, ForeignKey('manuscripts.id'), nullable=False, index=True)
+
+    # Discussion details
+    stage = Column(String(50), nullable=False, index=True)  # submission, review, copyediting, production
+    subject = Column(String(500), nullable=False)
+    status = Column(String(20), default='active')  # active, closed
+
+    # Creator
+    created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    last_message_at = Column(DateTime(timezone=True))
+
+    # Relationships
+    manuscript = relationship("Manuscript", back_populates="discussions")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    participants = relationship("User", secondary=discussion_participants, backref="discussions")
+    messages = relationship("DiscussionMessage", back_populates="discussion", cascade="all, delete-orphan")
+
+
+class DiscussionMessage(Base):
+    """Messages within a discussion."""
+    __tablename__ = "discussion_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    discussion_id = Column(Integer, ForeignKey('discussions.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # Message content
+    message = Column(Text, nullable=False)
+
+    # Timestamp
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    discussion = relationship("Discussion", back_populates="messages")
+    user = relationship("User")
+    attachments = relationship("DiscussionAttachment", back_populates="message", cascade="all, delete-orphan")
+
+
+class DiscussionAttachment(Base):
+    """File attachments in discussion messages."""
+    __tablename__ = "discussion_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    discussion_id = Column(Integer, ForeignKey('discussions.id'), nullable=False)
+    message_id = Column(Integer, ForeignKey('discussion_messages.id'), nullable=False)
+    file_id = Column(Integer, ForeignKey('manuscript_files.id'), nullable=False)
+
+    # Timestamp
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    discussion = relationship("Discussion")
+    message = relationship("DiscussionMessage", back_populates="attachments")
+    file = relationship("ManuscriptFile")
+
+
+class ManuscriptParticipant(Base):
+    """Track all participants involved in a manuscript at any stage."""
+    __tablename__ = "manuscript_participants"
+
+    manuscript_id = Column(Integer, ForeignKey('manuscripts.id'), primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    role = Column(String(50), primary_key=True)  # editor, reviewer, copyeditor, author, etc.
+    stage = Column(String(50))  # which stage they're involved in (optional)
+
+    # Metadata
+    added_at = Column(DateTime(timezone=True), server_default=func.now())
+    added_by_id = Column(Integer, ForeignKey('users.id'))
+
+    # Relationships
+    manuscript = relationship("Manuscript", back_populates="participants")
+    user = relationship("User", foreign_keys=[user_id])
+    added_by = relationship("User", foreign_keys=[added_by_id])
