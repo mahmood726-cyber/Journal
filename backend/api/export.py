@@ -18,6 +18,7 @@ from db.base import get_db
 from db.models import Manuscript, User, UserRole, ManuscriptStatus
 from api.auth import get_current_user
 from services.pubmed_xml_service import generate_pubmed_xml_for_manuscript
+from services.jats_xml_service import generate_jats_xml_for_manuscript
 from core.config import settings
 
 router = APIRouter()
@@ -216,6 +217,126 @@ async def export_batch_pubmed_xml(
         media_type="application/xml",
         headers={
             "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.get("/manuscripts/{manuscript_id}/jats-xml")
+async def export_manuscript_jats_xml(
+    manuscript_id: int,
+    include_body: bool = False,
+    include_references: bool = True,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Export manuscript in JATS XML 1.3 format for PMC, Europe PMC, and Crossref.
+
+    JATS (Journal Article Tag Suite) is the NISO standard for scholarly articles.
+
+    Query Parameters:
+        include_body: Include article body text (default: False)
+        include_references: Include references section (default: True)
+
+    Only published manuscripts can be exported.
+    Requires editor/admin role or manuscript authorship.
+
+    Returns:
+        XML response with JATS 1.3 compliant article XML
+    """
+    # Fetch manuscript
+    manuscript = db.query(Manuscript).filter(Manuscript.id == manuscript_id).first()
+
+    if not manuscript:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manuscript not found"
+        )
+
+    # Check if manuscript is published
+    if manuscript.status != ManuscriptStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only published manuscripts can be exported to JATS XML"
+        )
+
+    # Check permissions
+    is_editor = current_user.role in [UserRole.EDITOR, UserRole.EDITOR_IN_CHIEF, UserRole.ADMIN]
+    is_author = any(author.id == current_user.id for author in manuscript.authors)
+
+    if not is_editor and not is_author:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to export this manuscript"
+        )
+
+    # Prepare manuscript data
+    manuscript_data = {
+        'manuscript_id': manuscript.manuscript_id,
+        'title': manuscript.title,
+        'abstract': manuscript.abstract,
+        'keywords': manuscript.keywords if hasattr(manuscript, 'keywords') else [],
+        'authors': [
+            {
+                'first_name': author.first_name or author.full_name.split()[0],
+                'last_name': author.last_name or author.full_name.split()[-1],
+                'full_name': author.full_name,
+                'affiliation': author.affiliation,
+                'orcid': author.orcid,
+                'email': author.email,
+            }
+            for author in manuscript.authors
+        ],
+        'doi': manuscript.doi,
+        'published_at': manuscript.published_at.isoformat() if manuscript.published_at else None,
+        'volume': manuscript.volume,
+        'issue': manuscript.issue,
+        'page_start': manuscript.page_start,
+        'page_end': manuscript.page_end,
+        'language': 'eng',
+        'article_type': manuscript.article_type or 'research-article',
+        'copyright_year': manuscript.published_at.year if manuscript.published_at else None,
+        'copyright_holder': 'The Authors',
+    }
+
+    # Add optional fields
+    if hasattr(manuscript, 'body_content') and include_body:
+        manuscript_data['body_content'] = manuscript.body_content
+
+    if hasattr(manuscript, 'acknowledgments'):
+        manuscript_data['acknowledgments'] = manuscript.acknowledgments
+
+    if hasattr(manuscript, 'references') and include_references:
+        manuscript_data['references'] = manuscript.references
+
+    # Journal metadata
+    journal_meta = {
+        'title': getattr(settings, 'JOURNAL_TITLE', 'Diamond Open Access Journal'),
+        'abbrev': getattr(settings, 'JOURNAL_ABBREV', 'Diamond OA J'),
+        'issn': getattr(settings, 'JOURNAL_ISSN', '2XXX-XXXX'),
+        'publisher': getattr(settings, 'PUBLISHER_NAME', 'Diamond Open Access Publisher'),
+    }
+
+    # Generate JATS XML
+    try:
+        xml_content = generate_jats_xml_for_manuscript(
+            manuscript=manuscript_data,
+            journal_meta=journal_meta,
+            include_body=include_body,
+            include_references=include_references
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate JATS XML: {str(e)}"
+        )
+
+    # Return XML response
+    return Response(
+        content=xml_content,
+        media_type="application/xml",
+        headers={
+            "Content-Disposition": f"attachment; filename={manuscript.manuscript_id}_jats.xml"
         }
     )
 
