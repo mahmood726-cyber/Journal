@@ -269,10 +269,13 @@ async def test_llm_generation(
 
 
 # ============================================================================
-# Reviewer Matching Endpoints (Coming Soon)
+# Reviewer Matching Endpoints
 # ============================================================================
 
-@router.get("/reviewer-matching/suggest/{manuscript_id}")
+from services.reviewer_matching_service import get_reviewer_matching_service, ReviewerMatchingReport
+
+
+@router.get("/reviewer-matching/suggest/{manuscript_id}", response_model=ReviewerMatchingReport)
 async def suggest_reviewers(
     manuscript_id: int,
     num_reviewers: int = 5,
@@ -280,30 +283,226 @@ async def suggest_reviewers(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Suggest best reviewers for a manuscript using AI matching.
+    Suggest best reviewers for a manuscript using AI semantic matching.
 
-    Coming soon in Phase 2.
+    Uses local LLM embeddings to find reviewers whose expertise best matches
+    the manuscript content. Considers:
+    - Semantic similarity between manuscript and reviewer expertise
+    - Reviewer workload and availability
+    - Past review performance
+    - Conflict of interest (excludes authors)
+
+    Permissions:
+    - Editors and Admins only
+
+    Returns:
+    - List of top N reviewer matches with similarity scores
+    - AI-generated explanations for each match
+    - Reviewer availability and workload info
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="AI reviewer matching coming soon"
-    )
+    # Permission check
+    if current_user.role not in [UserRole.EDITOR, UserRole.EDITOR_IN_CHIEF, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only editors can access reviewer suggestions"
+        )
+
+    # Get manuscript
+    manuscript = db.query(Manuscript).filter(Manuscript.id == manuscript_id).first()
+
+    if not manuscript:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manuscript not found"
+        )
+
+    # Get author IDs to exclude (conflict of interest)
+    author_ids = [author.id for author in manuscript.authors]
+
+    # Find best reviewers
+    try:
+        matching_service = get_reviewer_matching_service()
+        report = await matching_service.find_best_reviewers(
+            manuscript_id=manuscript_id,
+            num_reviewers=num_reviewers,
+            exclude_author_ids=author_ids,
+            db=db
+        )
+
+        return report
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Reviewer matching failed: {str(e)}"
+        )
 
 
 # ============================================================================
-# Email Template Generation Endpoints (Coming Soon)
+# Email Template Generation Endpoints
 # ============================================================================
 
-@router.post("/email-templates/generate")
+from services.email_template_ai_service import (
+    get_email_template_service,
+    EmailContent,
+    EmailTemplateType,
+    EmailTone
+)
+
+
+class EmailGenerationRequest(BaseModel):
+    """Request to generate email template."""
+    template_type: str  # review_invitation, acceptance, rejection, etc.
+    context: Dict
+    tone: str = "professional"
+    custom_instructions: Optional[str] = None
+
+
+@router.post("/email-templates/generate", response_model=EmailContent)
 async def generate_email_template(
+    request: EmailGenerationRequest,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Generate personalized email template using AI.
+    Generate personalized email template using local LLM.
 
-    Coming soon in Phase 2.
+    Uses AI to create natural, contextual emails for journal workflow events.
+
+    Features:
+    - Dynamic content based on context
+    - Multiple tone options (professional, friendly, formal, etc.)
+    - Personalized for recipient
+    - No cost (uses local LLM)
+
+    Template Types:
+    - review_invitation: Invite reviewer to review manuscript
+    - review_reminder: Remind reviewer about pending review
+    - review_thank_you: Thank reviewer for completed review
+    - revision_request: Request revisions from author
+    - acceptance: Congratulate author on acceptance
+    - rejection: Respectfully decline manuscript
+    - submission_confirmation: Confirm manuscript submission
+    - publication_announcement: Announce article publication
+
+    Permissions:
+    - Editors and Admins only
+
+    Example Request:
+    ```json
+    {
+        "template_type": "review_invitation",
+        "context": {
+            "reviewer_name": "Dr. Jane Smith",
+            "manuscript_title": "Machine Learning in Healthcare",
+            "abstract": "This study...",
+            "due_date": "2025-02-15",
+            "match_reason": "Your expertise in ML and healthcare makes you ideal"
+        },
+        "tone": "professional",
+        "custom_instructions": "Mention our fast review process"
+    }
+    ```
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="AI email template generation coming soon"
-    )
+    # Permission check
+    if current_user.role not in [UserRole.EDITOR, UserRole.EDITOR_IN_CHIEF, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only editors can generate email templates"
+        )
+
+    # Validate template type
+    try:
+        template_type = EmailTemplateType(request.template_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid template type: {request.template_type}"
+        )
+
+    # Validate tone
+    try:
+        tone = EmailTone(request.tone)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid tone: {request.tone}. Use: professional, friendly, formal, encouraging, congratulatory"
+        )
+
+    # Generate email
+    try:
+        email_service = get_email_template_service()
+        email_content = await email_service.generate_email(
+            template_type=template_type,
+            context=request.context,
+            tone=tone,
+            custom_instructions=request.custom_instructions
+        )
+
+        return email_content
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Email generation failed: {str(e)}"
+        )
+
+
+class PersonalizeTemplateRequest(BaseModel):
+    """Request to personalize existing template."""
+    template: str
+    recipient_name: str
+    recipient_context: Dict
+    tone: str = "professional"
+
+
+class PersonalizeTemplateResponse(BaseModel):
+    """Response with personalized template."""
+    personalized_text: str
+
+
+@router.post("/email-templates/personalize", response_model=PersonalizeTemplateResponse)
+async def personalize_email_template(
+    request: PersonalizeTemplateRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Personalize an existing email template for a specific recipient.
+
+    Takes a generic template and makes it feel handcrafted for the recipient
+    while maintaining the core message.
+
+    Permissions:
+    - Editors and Admins only
+    """
+    # Permission check
+    if current_user.role not in [UserRole.EDITOR, UserRole.EDITOR_IN_CHIEF, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only editors can personalize templates"
+        )
+
+    # Validate tone
+    try:
+        tone = EmailTone(request.tone)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid tone: {request.tone}"
+        )
+
+    try:
+        email_service = get_email_template_service()
+        personalized = await email_service.personalize_template(
+            template=request.template,
+            recipient_name=request.recipient_name,
+            recipient_context=request.recipient_context,
+            tone=tone
+        )
+
+        return PersonalizeTemplateResponse(personalized_text=personalized)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Personalization failed: {str(e)}"
+        )
