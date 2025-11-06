@@ -6,32 +6,32 @@ import re
 from typing import Optional, List, Dict, Any
 from pypdf2 import PdfReader
 import httpx
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class ExtractedMetadata:
+class Author(BaseModel):
+    """Author information."""
+    name: str
+    affiliation: str = ""
+    email: Optional[str] = None
+    orcid: Optional[str] = None
+    is_corresponding: bool = False
+
+
+class ExtractedMetadata(BaseModel):
     """Extracted metadata from PDF."""
     title: Optional[str] = None
-    authors: List[str] = None
-    affiliations: List[str] = None
+    authors: List[Author] = []
     abstract: Optional[str] = None
-    keywords: List[str] = None
-    references: List[str] = None
+    keywords: List[str] = []
+    references: List[str] = []
     email: Optional[str] = None
-    orcids: List[str] = None
-
-    def __post_init__(self):
-        if self.authors is None:
-            self.authors = []
-        if self.affiliations is None:
-            self.affiliations = []
-        if self.keywords is None:
-            self.keywords = []
-        if self.references is None:
-            self.references = []
-        if self.orcids is None:
-            self.orcids = []
+    orcids: List[str] = []
+    confidence_scores: Dict[str, float] = {
+        'title': 0.0,
+        'authors': 0.0,
+        'abstract': 0.0
+    }
 
 
 class PDFMetadataExtractor:
@@ -70,12 +70,19 @@ class PDFMetadataExtractor:
             # Extract components
             metadata = ExtractedMetadata()
             metadata.title = self._extract_title(text, reader)
-            metadata.authors, metadata.affiliations = self._extract_authors(text)
+            metadata.authors = self._extract_authors_plos_style(text)
             metadata.abstract = self._extract_abstract(text)
             metadata.keywords = self._extract_keywords(text)
             metadata.references = self._extract_references(text)
             metadata.email = self._extract_email(text)
             metadata.orcids = self._extract_orcids(text)
+
+            # Calculate confidence scores
+            metadata.confidence_scores = {
+                'title': 0.9 if metadata.title and len(metadata.title) > 10 else 0.3,
+                'authors': 0.8 if len(metadata.authors) >= 2 else 0.5 if len(metadata.authors) == 1 else 0.2,
+                'abstract': 0.9 if metadata.abstract and len(metadata.abstract) > 100 else 0.4
+            }
 
             return metadata
 
@@ -127,17 +134,22 @@ class PDFMetadataExtractor:
 
         return None
 
-    def _extract_authors(self, text: str) -> tuple[List[str], List[str]]:
+    def _extract_authors_plos_style(self, text: str) -> List[Author]:
         """
-        Extract authors and affiliations.
+        Extract authors in PLOS ONE style format.
 
-        Patterns:
-        - Authors appear after title, before abstract
-        - Often have superscript numbers (1,2,3) for affiliations
-        - Affiliations list institutions with those numbers
+        PLOS ONE format:
+        - "John M. Smith1*, Jane Doe2, Robert Johnson1"
+        - Superscript numbers (1, 2, 3) indicate affiliations
+        - Asterisk (*) indicates corresponding author
+        - Comma-separated list
+        - May include middle initials
+
+        Returns:
+            List of Author objects with name, affiliation, and metadata
         """
         authors = []
-        affiliations = []
+        affiliations_map = {}
 
         # Find section between title and abstract
         abstract_match = re.search(r'abstract', text, re.IGNORECASE)
@@ -146,33 +158,108 @@ class PDFMetadataExtractor:
         else:
             header_text = text[:2000]  # First ~2000 chars
 
-        # Look for author names (capitalized words, possibly with middle initials)
-        # Pattern: FirstName M. LastName, FirstName LastName, etc.
-        author_pattern = r'([A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-z]+)'
-        potential_authors = re.findall(author_pattern, header_text)
-
-        # Filter out common false positives
-        excluded = ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion',
-                   'Keywords', 'References', 'Figure', 'Table']
-
-        for author in potential_authors:
-            if author not in excluded and len(author) > 5:
-                authors.append(author.strip())
-
-        # Extract affiliations (lines with numbers or institution keywords)
+        # Step 1: Extract affiliations with their numbers
+        # Pattern: "1Department of Biology, University Name"
+        # or "1 Department of Biology, University Name"
         affiliation_keywords = ['university', 'institute', 'department', 'school',
-                               'college', 'center', 'laboratory', 'hospital']
+                               'college', 'center', 'laboratory', 'hospital', 'faculty']
 
         for line in header_text.split('\n'):
             line_lower = line.lower()
             if any(keyword in line_lower for keyword in affiliation_keywords):
-                affiliations.append(line.strip())
+                # Try to extract leading number
+                number_match = re.match(r'^(\d+)\s*(.+)', line.strip())
+                if number_match:
+                    affil_num = number_match.group(1)
+                    affil_text = number_match.group(2)
+                    affiliations_map[affil_num] = affil_text.strip()
+                else:
+                    # No number, use as default affiliation
+                    affiliations_map['default'] = line.strip()
 
-        # Remove duplicates while preserving order
-        authors = list(dict.fromkeys(authors))[:10]  # Max 10 authors
-        affiliations = list(dict.fromkeys(affiliations))[:5]  # Max 5 affiliations
+        # Step 2: Find author line (usually comma-separated names with numbers/asterisks)
+        # Look for pattern: "Name1*, Name2, Name3"
+        # Enhanced pattern to match PLOS ONE style:
+        # - FirstName [MiddleInitial.] LastName[NumbersAndSymbols]
+        author_line_pattern = r'([A-Z][a-z]+(?:\s+[A-Z]\.?\s+|\s+)[A-Z][a-z]+[\d\*\†\‡§¶#]*(?:\s*,\s*|\s+and\s+|$))+'
 
-        return authors, affiliations
+        potential_author_lines = re.findall(author_line_pattern, header_text)
+
+        if potential_author_lines:
+            # Use the longest match as it's likely the complete author list
+            author_line = max(potential_author_lines, key=len)
+
+            # Split by commas and 'and'
+            author_parts = re.split(r',|\sand\s', author_line)
+
+            for part in author_parts:
+                part = part.strip()
+                if len(part) < 5:  # Too short to be a name
+                    continue
+
+                # Extract name, numbers, and asterisk
+                # Pattern: "John M. Smith1*" -> name="John M. Smith", numbers="1", has_asterisk=True
+                match = re.match(r'([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)*[A-Z][a-z]+)([\d,\s]*)(\*|\†|\‡)?', part)
+
+                if match:
+                    name = match.group(1).strip()
+                    affil_numbers = match.group(2).strip() if match.group(2) else ""
+                    is_corresponding = match.group(3) is not None
+
+                    # Get affiliation(s) from numbers
+                    affiliation = ""
+                    if affil_numbers:
+                        # Extract individual numbers
+                        nums = re.findall(r'\d+', affil_numbers)
+                        if nums:
+                            # Use first affiliation number
+                            affiliation = affiliations_map.get(nums[0], "")
+
+                    # If no affiliation found, use default
+                    if not affiliation and 'default' in affiliations_map:
+                        affiliation = affiliations_map['default']
+
+                    # Extract email if in parentheses near name
+                    email_match = self.email_pattern.search(part)
+                    email = email_match.group(0) if email_match else None
+
+                    # Extract ORCID if present
+                    orcid_match = self.orcid_pattern.search(part)
+                    orcid = orcid_match.group(0) if orcid_match else None
+
+                    authors.append(Author(
+                        name=name,
+                        affiliation=affiliation,
+                        email=email,
+                        orcid=orcid,
+                        is_corresponding=is_corresponding
+                    ))
+
+        # Fallback: If no authors found with PLOS style, use simple pattern
+        if not authors:
+            author_pattern = r'([A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-z]+)'
+            potential_authors = re.findall(author_pattern, header_text)
+
+            excluded = ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion',
+                       'Keywords', 'References', 'Figure', 'Table', 'Email', 'Copyright']
+
+            for author_name in potential_authors:
+                if author_name not in excluded and len(author_name) > 5:
+                    authors.append(Author(
+                        name=author_name.strip(),
+                        affiliation=affiliations_map.get('default', '')
+                    ))
+
+            # Limit to unique names
+            seen_names = set()
+            unique_authors = []
+            for author in authors:
+                if author.name not in seen_names:
+                    seen_names.add(author.name)
+                    unique_authors.append(author)
+            authors = unique_authors[:15]  # Max 15 authors
+
+        return authors[:15]  # Limit to 15 authors
 
     def _extract_abstract(self, text: str) -> Optional[str]:
         """
@@ -295,7 +382,7 @@ class PDFMetadataExtractor:
                         # Enhance authors if not found
                         if not metadata.authors and 'author' in item:
                             metadata.authors = [
-                                f"{a.get('given', '')} {a.get('family', '')}"
+                                Author(name=f"{a.get('given', '')} {a.get('family', '')}".strip())
                                 for a in item['author']
                             ]
 
