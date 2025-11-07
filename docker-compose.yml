@@ -19,16 +19,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis for Celery
+  # Redis for Celery, Caching, and Real-time Features
   redis:
     image: redis:7-alpine
     container_name: journal_redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_pass}
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,6 +49,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://journal_user:journal_pass@db:5432/journal_db
       - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_pass}
+      - REDIS_DB=0
     depends_on:
       db:
         condition: service_healthy
@@ -69,6 +74,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://journal_user:journal_pass@db:5432/journal_db
       - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_pass}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/1
     depends_on:
       - db
       - redis
