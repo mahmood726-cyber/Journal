@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRISMA 2020 Flow &amp; Checklist Generator</title>
+<meta property="og:title" content="PRISMA 2020 Flow & Checklist Generator">
+<meta property="og:description" content="Offline generator for the PRISMA 2020 study-selection flow diagram and the 27-item reporting checklist, with arithmetic reconciliation of the reported counts.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --c-ink:#1a1a1a; --c-ink-2:#555a5f; --c-annot:#7a8086; --c-grid:#e7e9ec;
+    --c-axis:#c2c6cb; --c-null:#9aa0a6; --c-estimate:#1a1a1a;
+    --cat-1:#0072B2;
+    --t-font-serif:Georgia,'Times New Roman',serif;
+    --t-font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --accent:#2563a8; --bg:#fbfbfa; --card:#ffffff; --line:#e2e4e7; --warn:#9a6a00; --good:#1f7a44;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--c-ink);font-family:var(--t-font-sans);line-height:1.5}
+  header{padding:26px 22px 14px;border-bottom:1px solid var(--line);background:var(--card)}
+  h1{margin:0;font-family:var(--t-font-serif);font-size:25px;font-weight:600}
+  .sub{color:var(--c-ink-2);font-size:14px;margin-top:4px;max-width:780px}
+  main{max-width:1120px;margin:0 auto;padding:20px 22px 60px;display:grid;gap:20px;grid-template-columns:1fr;}
+  @media(min-width:900px){main{grid-template-columns:340px 1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+  .card h2{margin:0 0 12px;font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--c-ink-2)}
+  label{display:block;font-size:13px;color:var(--c-ink-2);margin:10px 0 3px}
+  input,select{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:7px;font-size:14px;font-family:inherit;background:#fff}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:12px;color:var(--c-annot);margin-top:3px}
+  svg{width:100%;height:auto;display:block}
+  .figwrap{margin-top:6px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:7px;padding:10px 14px;font-size:14px;cursor:pointer;font-family:inherit;margin-top:14px;width:100%}
+  button.sec{background:#eef2f6;color:var(--c-ink);margin-top:8px}
+  .prov{font-size:12px;color:var(--c-annot);margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+  code{background:#f1f3f5;padding:1px 5px;border-radius:4px;font-size:12px}
+  footer{max-width:1120px;margin:0 auto;padding:0 22px 40px;color:var(--c-annot);font-size:12px}
+  .warns{margin-top:6px}
+  .warn{background:#fff8ea;border:1px solid #f0e0b8;color:var(--warn);font-size:13px;border-radius:7px;padding:8px 10px;margin-top:7px}
+  .allgood{background:#eefaf2;border:1px solid #c4e8d2;color:var(--good);font-size:13px;border-radius:7px;padding:8px 10px;margin-top:7px}
+  .reasons{margin-top:6px}
+  .reasonrow{display:grid;grid-template-columns:1fr 90px 30px;gap:8px;margin-top:6px;align-items:center}
+  .reasonrow input{margin:0}
+  .reasonrow button{margin:0;width:100%;background:#eef2f6;color:var(--c-ink);padding:8px}
+  .addbtn{background:#eef2f6;color:var(--c-ink)}
+  /* checklist */
+  .clitem{display:grid;grid-template-columns:24px 38px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;align-items:start}
+  .clitem input{width:18px;height:18px;margin-top:2px}
+  .clsec{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);padding-top:16px;border-bottom:1.5px solid var(--c-axis)}
+  .clnum{color:var(--c-annot);font-variant-numeric:tabular-nums}
+  .clcount{font-size:13px;color:var(--c-ink-2);margin:8px 0 2px}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tab{flex:1;text-align:center;padding:8px;border:1px solid var(--line);border-radius:7px;cursor:pointer;font-size:13px;background:#fff;color:var(--c-ink-2)}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .figcap{font-size:12px;color:var(--c-annot);margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>PRISMA 2020 Flow &amp; Checklist Generator</h1>
+  <div class="sub">Enter your study-selection counts to generate the PRISMA 2020 flow diagram, and tick off the 27-item reporting checklist. The engine reconciles your numbers against the canonical identification&rarr;screening&rarr;included identities and flags any mismatch. Fully offline &mdash; no network, no dependencies.</div>
+</header>
+<main>
+  <section class="card" id="inputs">
+    <h2>Study-selection counts</h2>
+    <div class="row">
+      <div><label for="recordsDb">Records via databases/registers</label><input id="recordsDb" type="number" step="1" min="0" value="800"></div>
+      <div><label for="recordsOther">Records via other sources</label><input id="recordsOther" type="number" step="1" min="0" value="200"></div>
+    </div>
+    <label for="duplicatesRemoved">Duplicates removed before screening</label>
+    <input id="duplicatesRemoved" type="number" step="1" min="0" value="300">
+    <div class="row">
+      <div><label for="recordsScreened">Records screened</label><input id="recordsScreened" type="number" step="1" min="0" value="700"></div>
+      <div><label for="recordsExcluded">Records excluded</label><input id="recordsExcluded" type="number" step="1" min="0" value="600"></div>
+    </div>
+    <div class="row">
+      <div><label for="reportsSought">Reports sought for retrieval</label><input id="reportsSought" type="number" step="1" min="0" value="100"></div>
+      <div><label for="reportsNotRetrieved">Reports not retrieved</label><input id="reportsNotRetrieved" type="number" step="1" min="0" value="10"></div>
+    </div>
+    <div class="row">
+      <div><label for="reportsAssessed">Reports assessed for eligibility</label><input id="reportsAssessed" type="number" step="1" min="0" value="90"></div>
+      <div><label for="studiesIncluded">Studies included</label><input id="studiesIncluded" type="number" step="1" min="0" value="45"></div>
+    </div>
+    <label for="reportsIncluded">Reports of included studies</label>
+    <input id="reportsIncluded" type="number" step="1" min="0" value="50">
+
+    <label>Reports excluded, with reasons</label>
+    <div class="reasons" id="reasons"></div>
+    <button id="addReason" class="sec addbtn">+ Add exclusion reason</button>
+
+    <button id="run">Generate flow</button>
+    <button id="ex" class="sec">Load example</button>
+    <div class="prov">
+      <b>Provenance.</b> Flow logic and the 27-item checklist follow PRISMA 2020
+      (Page et al., <i>BMJ</i> 2021;372:n71). Identities checked:
+      <code>screened = db + other &minus; duplicates</code>,
+      <code>assessed = sought &minus; not retrieved</code>,
+      <code>included = assessed &minus; &Sigma; reasons</code>.
+      Counts of 0 are kept (nullish fallback), not dropped.
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" id="tabFlow">Flow diagram</div>
+        <div class="tab" id="tabCheck">27-item checklist</div>
+      </div>
+
+      <div id="flowPane">
+        <h2>PRISMA 2020 flow</h2>
+        <div class="warns" id="warns"></div>
+        <div class="figwrap"><svg id="sankey" aria-label="PRISMA 2020 study-selection flow"></svg></div>
+        <div class="figcap" id="figcap"></div>
+      </div>
+
+      <div id="checkPane" style="display:none">
+        <h2>PRISMA 2020 27-item checklist</h2>
+        <div class="clcount" id="clcount"></div>
+        <div id="checklist"></div>
+        <button id="copyCheck" class="sec">Copy checklist as text</button>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  PRISMA 2020 Flow &amp; Checklist Generator &middot; single-file, offline &middot; flow rendering by the e156 chart-kit &middot;
+  MIT licensed. The diagram reproduces your reported counts; verify them against your screening log before reporting.
+</footer>
+
+<script src="chartkit.js"></script>
+<script src="engine.js"></script>
+<script>
+(function(){
+  var E = window.PrismaEngine;
+  var $ = function(id){ return document.getElementById(id); };
+
+  // ---- exclusion-reason rows ------------------------------------------------
+  var reasonsWrap = $('reasons');
+  function addReasonRow(reason, n){
+    var div = document.createElement('div');
+    div.className = 'reasonrow';
+    var ri = document.createElement('input'); ri.type='text'; ri.placeholder='Reason'; ri.value = reason ?? '';
+    var ni = document.createElement('input'); ni.type='number'; ni.step='1'; ni.min='0'; ni.placeholder='n'; ni.value = (n ?? '');
+    var rm = document.createElement('button'); rm.textContent='×'; rm.title='Remove';
+    rm.addEventListener('click', function(){ reasonsWrap.removeChild(div); render(); });
+    ri.addEventListener('input', render); ni.addEventListener('input', render);
+    div.appendChild(ri); div.appendChild(ni); div.appendChild(rm);
+    reasonsWrap.appendChild(div);
+  }
+  function readReasons(){
+    var out = [];
+    reasonsWrap.querySelectorAll('.reasonrow').forEach(function(row){
+      var inputs = row.querySelectorAll('input');
+      var reason = inputs[0].value.trim();
+      var n = inputs[1].value === '' ? null : parseFloat(inputs[1].value);
+      if(reason || (n != null && isFinite(n))) out.push({ reason: reason || 'reason', n: n });
+    });
+    return out;
+  }
+
+  function readInput(){
+    function v(id){ var s = $(id).value; return s === '' ? null : parseFloat(s); }
+    return {
+      recordsDb: v('recordsDb'), recordsOther: v('recordsOther'),
+      duplicatesRemoved: v('duplicatesRemoved'),
+      recordsScreened: v('recordsScreened'), recordsExcluded: v('recordsExcluded'),
+      reportsSought: v('reportsSought'), reportsNotRetrieved: v('reportsNotRetrieved'),
+      reportsAssessed: v('reportsAssessed'),
+      studiesIncluded: v('studiesIncluded'), reportsIncluded: v('reportsIncluded'),
+      excludedReasons: readReasons()
+    };
+  }
+
+  // ---- flow render ----------------------------------------------------------
+  function render(){
+    var inp = readInput();
+    var built = E.buildStages(inp);
+    var rc = built.reconcile;
+
+    // warnings
+    var w = $('warns'); w.innerHTML='';
+    if(rc.warnings.length === 0){
+      var d = document.createElement('div'); d.className='allgood';
+      d.textContent = 'Counts are internally consistent across all three PRISMA identities.';
+      w.appendChild(d);
+    } else {
+      rc.warnings.forEach(function(t){ var d=document.createElement('div'); d.className='warn'; d.textContent=t; w.appendChild(d); });
+    }
+
+    // sankey
+    var svg = $('sankey'), cap = $('figcap');
+    if(built.stages.length < 2){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      cap.textContent = 'Enter at least the records identified and screened to draw the flow.';
+      return;
+    }
+    var opts = {
+      width: 560, height: 360, unit: 'records',
+      claim: 'PRISMA 2020 study selection',
+      estimand: 'Identification → screening → included (counts ∝ ribbon width)'
+    };
+    try {
+      window.ChartKit.renderSankey(svg, built.stages, opts);
+      cap.textContent = 'Stages left to right; exit ribbons peel downward. The final stage fans the itemised exclusion reasons. Σ exclusion reasons = ' + rc.sumExcludedReasons + '.';
+    } catch(e){
+      cap.textContent = 'Flow preview unavailable: ' + e.message;
+    }
+  }
+
+  // ---- checklist ------------------------------------------------------------
+  var checked = {};
+  function renderChecklist(){
+    var wrap = $('checklist'); wrap.innerHTML='';
+    var lastSec = null;
+    E.CHECKLIST.forEach(function(it){
+      if(it.section !== lastSec){
+        var s = document.createElement('div'); s.className='clsec'; s.textContent = it.section;
+        wrap.appendChild(s); lastSec = it.section;
+      }
+      var row = document.createElement('div'); row.className='clitem';
+      var cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!checked[it.item];
+      cb.addEventListener('change', function(){ checked[it.item] = cb.checked; updateCount(); });
+      var num = document.createElement('div'); num.className='clnum'; num.textContent = it.item;
+      var txt = document.createElement('div'); txt.textContent = it.text;
+      row.appendChild(cb); row.appendChild(num); row.appendChild(txt);
+      wrap.appendChild(row);
+    });
+    updateCount();
+  }
+  function updateCount(){
+    var done = E.CHECKLIST.filter(function(it){ return checked[it.item]; }).length;
+    $('clcount').textContent = done + ' of ' + E.CHECKLIST.length + ' items marked complete.';
+  }
+  function checklistText(){
+    var lines = ['PRISMA 2020 Checklist (Page et al., BMJ 2021;372:n71)', ''];
+    var lastSec = null;
+    E.CHECKLIST.forEach(function(it){
+      if(it.section !== lastSec){ lines.push('## ' + it.section); lastSec = it.section; }
+      lines.push('[' + (checked[it.item] ? 'x' : ' ') + '] ' + it.item + '. ' + it.text);
+    });
+    return lines.join('\n');
+  }
+
+  // ---- tabs -----------------------------------------------------------------
+  function showTab(which){
+    var flow = which === 'flow';
+    $('flowPane').style.display = flow ? 'block' : 'none';
+    $('checkPane').style.display = flow ? 'none' : 'block';
+    $('tabFlow').classList.toggle('active', flow);
+    $('tabCheck').classList.toggle('active', !flow);
+  }
+
+  // ---- wire up --------------------------------------------------------------
+  $('run').addEventListener('click', render);
+  $('addReason').addEventListener('click', function(){ addReasonRow('', null); render(); });
+  $('tabFlow').addEventListener('click', function(){ showTab('flow'); });
+  $('tabCheck').addEventListener('click', function(){ showTab('check'); });
+  $('copyCheck').addEventListener('click', function(){
+    var t = checklistText();
+    if(navigator.clipboard) navigator.clipboard.writeText(t);
+    this.textContent='Copied!'; var b=this; setTimeout(function(){b.textContent='Copy checklist as text';},1200);
+  });
+  ['recordsDb','recordsOther','duplicatesRemoved','recordsScreened','recordsExcluded',
+   'reportsSought','reportsNotRetrieved','reportsAssessed','studiesIncluded','reportsIncluded'
+  ].forEach(function(id){ $(id).addEventListener('input', render); });
+
+  $('ex').addEventListener('click', function(){
+    var ex = { recordsDb:800, recordsOther:200, duplicatesRemoved:300,
+      recordsScreened:700, recordsExcluded:600, reportsSought:100,
+      reportsNotRetrieved:10, reportsAssessed:90, studiesIncluded:45, reportsIncluded:50 };
+    Object.keys(ex).forEach(function(k){ $(k).value = ex[k]; });
+    reasonsWrap.innerHTML='';
+    addReasonRow('Wrong population', 20);
+    addReasonRow('Wrong outcome', 15);
+    addReasonRow('No control arm', 10);
+    render();
+  });
+
+  // seed initial example reasons
+  addReasonRow('Wrong population', 20);
+  addReasonRow('Wrong outcome', 15);
+  addReasonRow('No control arm', 10);
+  renderChecklist();
+  render();
+})();
+</script>
+</body>
+</html>
